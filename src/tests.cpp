@@ -7,6 +7,11 @@ int my_strlen(char *str) {
      */
 
     // IMPLEMENT YOUR CODE HERE
+    int count = 0;
+    while (*str !='\0');{
+        count++;
+        str++;
+    }
     return 0;
 }
 
@@ -19,7 +24,16 @@ void my_strcat(char *str_1, char *str_2) {
      */
 
     // IMPLEMENT YOUR CODE HERE
-}
+    while (*str_1 !='\0'){
+        str_1++;
+    }
+    while (*str_2 !='\0'){
+        *str_1=*str_2;
+        str_1++;
+        str_2++;
+    }
+    *str_1='\0';
+}   
 
 
 // 练习3，实现库函数strstr
@@ -31,6 +45,8 @@ char* my_strstr(char *s, char *p) {
      */
 
     // IMPLEMENT YOUR CODE HERE
+    
+
     return 0;
 }
 
