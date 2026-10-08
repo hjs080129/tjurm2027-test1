@@ -8,11 +8,11 @@ int my_strlen(char *str) {
 
     // IMPLEMENT YOUR CODE HERE
     int count = 0;
-    while (*str !='\0');{
+    while (*str !='\0'){
         count++;
         str++;
     }
-    return 0;
+    return count;
 }
 
 
@@ -45,9 +45,26 @@ char* my_strstr(char *s, char *p) {
      */
 
     // IMPLEMENT YOUR CODE HERE
-    
+    if (*p == '\0') return s; // 如果要查的空字符串，直接返回 s
 
-    return 0;
+    while (*s != '\0') {
+        char *s_curr = s;
+        char *p_curr = p;
+
+        // 逐个字符匹配
+        while (*p_curr != '\0' && *s_curr == *p_curr) {
+            s_curr++;
+            p_curr++;
+        }
+
+        // 如果 p 匹配到末尾，说明找到了
+        if (*p_curr == '\0') {
+            return s;
+        }
+        s++;
+    }
+    return nullptr; // 找不到返回空指针
+
 }
 
 
@@ -113,6 +130,23 @@ void rgb2gray(float *in, float *out, int h, int w) {
 
     // IMPLEMENT YOUR CODE HERE
     // ...
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            // 彩色图中每个像素有 3 个通道：R、G、B
+            // 像素 (i, j) 在 in 中的起始下标
+            int idx_in = (i * w + j) * 3;
+
+            // 灰度图中每个像素只有 1 个通道
+            int idx_out = i * w + j;
+
+            float R = in[idx_in + 0];
+            float G = in[idx_in + 1];
+            float B = in[idx_in + 2];
+
+            // 按题目给定公式计算灰度值
+            out[idx_out] = 0.2989f * R + 0.5870f * G + 0.1140f * B;
+        }
+    }
 }
 
 // 练习5，实现图像处理算法 resize：缩小或放大图像
@@ -214,6 +248,55 @@ void resize(float *in, float *out, int h, int w, int c, float scale) {
 
     int new_h = h * scale, new_w = w * scale;
     // IMPLEMENT YOUR CODE HERE
+    int new_h = (int)(h * scale);
+    int new_w = (int)(w * scale);
+    
+    for (int y = 0; y < new_h; y++) {
+        float y0 = y / scale;
+        int y1 = (int)y0;
+        int y2 = y1 + 1;
+        float dy = y0 - y1;
+        
+        // 边界检查
+        if (y1 < 0) y1 = 0;
+        if (y1 > h - 1) y1 = h - 1;
+        if (y2 < 0) y2 = 0;
+        if (y2 > h - 1) y2 = h - 1;
+        
+        for (int x = 0; x < new_w; x++) {
+            float x0 = x / scale;
+            int x1 = (int)x0;
+            int x2 = x1 + 1;
+            float dx = x0 - x1;
+            
+            // 边界检查
+            if (x1 < 0) x1 = 0;
+            if (x1 > w - 1) x1 = w - 1;
+            if (x2 < 0) x2 = 0;
+            if (x2 > w - 1) x2 = w - 1;
+            
+            for (int k = 0; k < c; k++) {
+                // 四个邻居的索引
+                int idx11 = (y1 * w + x1) * c + k; // 左上
+                int idx12 = (y1 * w + x2) * c + k; // 右上
+                int idx21 = (y2 * w + x1) * c + k; // 左下
+                int idx22 = (y2 * w + x2) * c + k; // 右下
+                
+                float v11 = in[idx11];
+                float v12 = in[idx12];
+                float v21 = in[idx21];
+                float v22 = in[idx22];
+                
+                // 双线性插值
+                float val = (1 - dx) * (1 - dy) * v11
+                          + dx * (1 - dy) * v12
+                          + (1 - dx) * dy * v21
+                          + dx * dy * v22;
+                
+                out[(y * new_w + x) * c + k] = val;
+            }
+        }
+    }
 
 }
 
@@ -237,4 +320,58 @@ void hist_eq(float *in, int h, int w) {
      */
 
     // IMPLEMENT YOUR CODE HERE
+    // 灰度级个数为 256，对应 {0, 1, 2, ..., 255}
+    const int L = 256;
+    int total = h * w;
+
+    // 1. 统计直方图
+    //    由于像素值是 [0, 255] 内的小数，先四舍五入到最近的整数灰度级
+    int hist[256] = {0};
+    for (int i = 0; i < total; i++) {
+        int gray = (int)(in[i] + 0.5f);  // 四舍五入
+        if (gray < 0)   gray = 0;
+        if (gray > 255) gray = 255;
+        hist[gray]++;
+    }
+
+    // 2. 计算累积分布函数 (CDF)
+    //    cdf[k] 表示灰度级 <= k 的像素总数
+    float cdf[256] = {0.0f};
+    cdf[0] = (float)hist[0];
+    for (int i = 1; i < L; i++) {
+        cdf[i] = cdf[i - 1] + (float)hist[i];
+    }
+
+    // 3. 找到 CDF 中第一个非零值（即最小非零 CDF），用于归一化
+    //    如果图像本身对比度极低，cdf_min 可能接近 total
+    float cdf_min = 0.0f;
+    for (int i = 0; i < L; i++) {
+        if (cdf[i] > 0) {
+            cdf_min = cdf[i];
+            break;
+        }
+    }
+
+    // 4. 构建映射表 LUT
+    //    映射公式：new_gray = round((cdf[old_gray] - cdf_min) / (total - cdf_min) * (L - 1))
+    //    当 total == cdf_min（所有像素同灰度）时，避免除以零
+    int lut[256];
+    for (int i = 0; i < L; i++) {
+        if (total == (int)cdf_min) {
+            lut[i] = i;  // 所有像素同灰度，保持原样
+        } else {
+            float val = (cdf[i] - cdf_min) / (total - cdf_min) * (L - 1);
+            lut[i] = (int)(val + 0.5f);  // 四舍五入
+            if (lut[i] < 0)   lut[i] = 0;
+            if (lut[i] > 255) lut[i] = 255;
+        }
+    }
+
+    // 5. 应用映射表，直接修改原图像
+    for (int i = 0; i < total; i++) {
+        int gray = (int)(in[i] + 0.5f);
+        if (gray < 0)   gray = 0;
+        if (gray > 255) gray = 255;
+        in[i] = (float)lut[gray];
+    }
 }
